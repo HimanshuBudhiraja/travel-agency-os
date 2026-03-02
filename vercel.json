@@ -1,0 +1,15 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "env": {
+    "DATABASE_URL": "postgresql://build:build@localhost:5432/build"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "postgresql://build:build@localhost:5432/build",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k"
+    }
+  }
+}
