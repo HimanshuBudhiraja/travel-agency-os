@@ -1,0 +1,392 @@
+// AI-Native Travel Agency OS — Prisma Schema v7
+// Multi-tenant B2B SaaS: one Agency = one tenant
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  AGENT
+  OPS
+}
+
+enum LeadStage {
+  NEW
+  QUALIFIED
+  QUOTED
+  NEGOTIATING
+  BOOKED
+  POST_TRIP
+  LOST
+}
+
+enum LeadScore {
+  HOT
+  WARM
+  COLD
+}
+
+enum MessageChannel {
+  WHATSAPP
+  EMAIL
+  WEB_CHAT
+  SMS
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  OPENED
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum AiActionType {
+  INTENT_EXTRACTION
+  AUTO_REPLY
+  ITINERARY_GENERATION
+  FOLLOW_UP_SEND
+  LEAD_SCORING
+  SUPPLIER_RECOMMENDATION
+  FLIGHT_MONITOR
+  ESCALATION
+}
+
+// ─── Agency (Tenant) ─────────────────────────────────────────────────────────
+
+model Agency {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  logoUrl       String?
+  primaryColor  String   @default("#2563EB")
+  website       String?
+  phone         String?
+  email         String?
+  timezone      String   @default("UTC")
+  currency      String   @default("USD")
+  plan          String   @default("starter")
+  trialEndsAt   DateTime?
+  stripeCustomerId String?
+  stripeSubId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  aiPersonaName String   @default("Aria")
+  aiAutonomyThreshold Float @default(0.85)
+
+  users         User[]
+  clients       Client[]
+  conversations Conversation[]
+  leads         Lead[]
+  quotes        Quote[]
+  bookings      Booking[]
+  suppliers     Supplier[]
+  apiKeys       ApiKey[]
+  aiActions     AiAction[]
+
+  @@index([slug])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String
+  name      String
+  avatarUrl String?
+  role      UserRole
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedLeads    Lead[]     @relation("AssignedAgent")
+  createdQuotes    Quote[]
+  messages         Message[]  @relation("SentByAgent")
+
+  @@index([agencyId])
+  @@index([clerkId])
+}
+
+model Client {
+  id           String   @id @default(cuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  phone        String?
+  whatsapp     String?
+  country      String?
+  language     String   @default("en")
+  avatarUrl    String?
+  travelStyle  String?
+  preferredDestinations String[]
+  budgetRange  String?
+  groupSize    Int?
+  notes        String?
+  lifetimeValue  Float  @default(0)
+  bookingCount   Int    @default(0)
+  lastContactAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  conversations Conversation[]
+  leads         Lead[]
+  quotes        Quote[]
+  bookings      Booking[]
+
+  @@index([agencyId])
+  @@index([email])
+  @@index([phone])
+}
+
+model Conversation {
+  id         String         @id @default(cuid())
+  agencyId   String
+  agency     Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  clientId   String?
+  client     Client?        @relation(fields: [clientId], references: [id])
+  channel    MessageChannel
+  externalId String?
+  subject    String?
+  isOpen     Boolean        @default(true)
+  isAiManaged Boolean       @default(true)
+  agentTookOver Boolean     @default(false)
+  intentDestination String?
+  intentDates       String?
+  intentBudget      String?
+  intentGroupSize   Int?
+  intentSentiment   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages   Message[]
+  lead       Lead?
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([externalId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      MessageDirection
+  channel        MessageChannel
+  content        String
+  mediaUrls      String[]
+  isAiGenerated  Boolean          @default(false)
+  sentByAgentId  String?
+  sentByAgent    User?            @relation("SentByAgent", fields: [sentByAgentId], references: [id])
+  externalId     String?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId])
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  agencyId       String
+  agency         Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id])
+  conversationId String?    @unique
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+  assignedToId   String?
+  assignedTo     User?      @relation("AssignedAgent", fields: [assignedToId], references: [id])
+  stage          LeadStage  @default(NEW)
+  score          LeadScore  @default(WARM)
+  estimatedValue Float?
+  conversionProb Float?
+  destination    String?
+  departureDate  DateTime?
+  returnDate     DateTime?
+  paxCount       Int?
+  budget         Float?
+  notes          String?
+  lostReason     String?
+  closedAt       DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  quotes         Quote[]
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([stage])
+}
+
+model Quote {
+  id           String      @id @default(cuid())
+  agencyId     String
+  agency       Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client      @relation(fields: [clientId], references: [id])
+  leadId       String?
+  lead         Lead?       @relation(fields: [leadId], references: [id])
+  createdById  String
+  createdBy    User        @relation(fields: [createdById], references: [id])
+  status       QuoteStatus @default(DRAFT)
+  title        String
+  destination  String?
+  departureDate DateTime?
+  returnDate   DateTime?
+  paxCount     Int         @default(1)
+  netCost      Float       @default(0)
+  markup       Float       @default(0.20)
+  grossPrice   Float       @default(0)
+  currency     String      @default("USD")
+  itinerary    Json?
+  components   Json?
+  pdfUrl       String?
+  webLink      String?
+  webLinkToken String?     @unique
+  sentAt       DateTime?
+  openedAt     DateTime?
+  approvedAt   DateTime?
+  expiresAt    DateTime?
+  isAiGenerated Boolean    @default(false)
+  aiPrompt     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([status])
+  @@index([webLinkToken])
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  agencyId     String
+  agency       Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id])
+  quoteId      String?
+  status       BookingStatus @default(PENDING)
+  reference    String        @unique
+  destination  String?
+  departureDate DateTime?
+  returnDate   DateTime?
+  paxCount     Int           @default(1)
+  totalCost    Float
+  paidAmount   Float         @default(0)
+  currency     String        @default("USD")
+  stripePaymentId String?
+  hotelRef     String?
+  flightRef    String?
+  transferRef  String?
+  voucherUrls  String[]
+  confirmedAt  DateTime?
+  cancelledAt  DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  supplierBookings SupplierBooking[]
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model SupplierBooking {
+  id          String   @id @default(cuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  type        String
+  reference   String?
+  status      String   @default("pending")
+  cost        Float
+  currency    String   @default("USD")
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Supplier {
+  id           String   @id @default(cuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name         String
+  type         String
+  destination  String?
+  email        String?
+  phone        String?
+  website      String?
+  contractUrl  String?
+  contractExpiresAt DateTime?
+  reliabilityScore Float @default(5.0)
+  responseTimeAvg  Float?
+  complaintCount   Int   @default(0)
+  preferredFor     String[]
+  isPreferred  Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplierBookings SupplierBooking[]
+
+  @@index([agencyId])
+  @@index([type])
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  agencyId   String
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String   @unique
+  keyPreview String
+  isSandbox  Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime?
+
+  @@index([agencyId])
+  @@index([keyHash])
+}
+
+model AiAction {
+  id           String       @id @default(cuid())
+  agencyId     String
+  agency       Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  type         AiActionType
+  entityType   String?
+  entityId     String?
+  input        Json?
+  output       Json?
+  confidence   Float?
+  reasoning    String?
+  wasOverridden Boolean     @default(false)
+  createdAt    DateTime     @default(now())
+
+  @@index([agencyId])
+  @@index([type])
+  @@index([entityId])
+}

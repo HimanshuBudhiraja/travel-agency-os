@@ -1,0 +1,415 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TravelOS API",
+    "description": "REST API for the AI-Native Travel Agency Operating System. Integrate AI-powered travel search, booking, client management, and quote generation into your own tools and workflows.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "TravelOS Developer Support",
+      "email": "api@travelosapp.com"
+    }
+  },
+  "servers": [
+    { "url": "https://your-agency.travelosapp.com/api/v1", "description": "Production" },
+    { "url": "http://localhost:3000/api/v1", "description": "Local development" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Your TravelOS API key. Generate one from the Owner dashboard under Settings → API Keys."
+      }
+    },
+    "schemas": {
+      "Hotel": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "stars": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "rating": { "type": "number" },
+          "address": { "type": "string" },
+          "imageUrl": { "type": "string", "nullable": true },
+          "pricePerNight": { "type": "number" },
+          "totalPrice": { "type": "number" },
+          "currency": { "type": "string" },
+          "amenities": { "type": "array", "items": { "type": "string" } },
+          "supplierRef": { "type": "string" }
+        }
+      },
+      "Flight": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "airline": { "type": "string" },
+          "airlineCode": { "type": "string" },
+          "departureTime": { "type": "string", "format": "date-time" },
+          "arrivalTime": { "type": "string", "format": "date-time" },
+          "duration": { "type": "string" },
+          "stops": { "type": "integer" },
+          "price": { "type": "number" },
+          "currency": { "type": "string" },
+          "cabinClass": { "type": "string" },
+          "supplierRef": { "type": "string" }
+        }
+      },
+      "Client": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "nullable": true },
+          "phone": { "type": "string", "nullable": true },
+          "whatsapp": { "type": "string", "nullable": true },
+          "country": { "type": "string", "nullable": true },
+          "travelStyle": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["luxury", "adventure", "family", "budget", "business"]
+          },
+          "lifetimeValue": { "type": "number" },
+          "bookingCount": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "quoteId": { "type": "string" },
+          "title": { "type": "string" },
+          "destination": { "type": "string" },
+          "summary": { "type": "string" },
+          "days": { "type": "array", "items": { "type": "object" } },
+          "hotels": { "type": "array", "items": { "$ref": "#/components/schemas/Hotel" } },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "net": { "type": "number" },
+              "markup": { "type": "number" },
+              "gross": { "type": "number" }
+            }
+          }
+        }
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "reference": { "type": "string" },
+          "clientId": { "type": "string" },
+          "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"] },
+          "destination": { "type": "string", "nullable": true },
+          "departureDate": { "type": "string", "format": "date", "nullable": true },
+          "totalCost": { "type": "number" },
+          "currency": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/hotels/search": {
+      "post": {
+        "summary": "Search hotels",
+        "description": "Search for available hotels by destination and dates. Returns live pricing from connected suppliers (RateHawk). Falls back to mock data if supplier keys are not configured.",
+        "operationId": "searchHotels",
+        "tags": ["Hotels"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["destination", "checkIn", "checkOut", "adults"],
+                "properties": {
+                  "destination": { "type": "string", "description": "City name or region", "example": "Bali" },
+                  "checkIn": { "type": "string", "format": "date", "example": "2026-07-15" },
+                  "checkOut": { "type": "string", "format": "date", "example": "2026-07-22" },
+                  "adults": { "type": "integer", "minimum": 1, "maximum": 20, "example": 2 },
+                  "children": { "type": "array", "items": { "type": "integer" }, "description": "Ages of children", "example": [8] },
+                  "currency": { "type": "string", "default": "USD", "example": "USD" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hotel search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": { "type": "array", "items": { "$ref": "#/components/schemas/Hotel" } },
+                    "count": { "type": "integer" },
+                    "source": { "type": "string", "enum": ["live", "mock"] }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid parameters", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Invalid or missing API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/flights/search": {
+      "post": {
+        "summary": "Search flights",
+        "description": "Search for available flights by origin, destination, and date. Uses Duffel API for live results.",
+        "operationId": "searchFlights",
+        "tags": ["Flights"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["origin", "destination", "departureDate", "adults"],
+                "properties": {
+                  "origin": { "type": "string", "description": "IATA airport code", "example": "LHR" },
+                  "destination": { "type": "string", "description": "IATA airport code", "example": "DXB" },
+                  "departureDate": { "type": "string", "format": "date", "example": "2026-07-15" },
+                  "returnDate": { "type": "string", "format": "date", "example": "2026-07-22" },
+                  "adults": { "type": "integer", "minimum": 1, "maximum": 9, "example": 2 },
+                  "cabinClass": { "type": "string", "enum": ["economy", "premium_economy", "business", "first"], "default": "economy" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flight search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": { "type": "array", "items": { "$ref": "#/components/schemas/Flight" } },
+                    "count": { "type": "integer" },
+                    "source": { "type": "string", "enum": ["live", "mock"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quotes": {
+      "post": {
+        "summary": "Generate AI quote",
+        "description": "Provide a plain-language trip brief. The Agency Brain generates a full day-by-day itinerary with live hotel pricing and margin calculation in under 3 minutes.",
+        "operationId": "createQuote",
+        "tags": ["Quotes"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["brief"],
+                "properties": {
+                  "brief": {
+                    "type": "string",
+                    "minLength": 10,
+                    "description": "Natural language trip description",
+                    "example": "10-day Bali trip for 2 people in July 2026, budget $6000, luxury villas, wellness and culture focus"
+                  },
+                  "clientId": { "type": "string", "description": "Existing client ID to attach the quote to" },
+                  "leadId": { "type": "string", "description": "Lead ID to link this quote to" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated quote with itinerary",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Quote" } }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List quotes",
+        "description": "Returns all quotes for the authenticated agency.",
+        "operationId": "listQuotes",
+        "tags": ["Quotes"],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["DRAFT", "SENT", "OPENED", "APPROVED", "REJECTED", "EXPIRED"] } },
+          { "name": "clientId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of quotes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quotes": { "type": "array", "items": { "$ref": "#/components/schemas/Quote" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bookings": {
+      "post": {
+        "summary": "Create booking",
+        "description": "Confirm a quote as a booking. Automatically updates lead stage, client LTV, and triggers post-booking AI workflows.",
+        "operationId": "createBooking",
+        "tags": ["Bookings"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["quoteId", "clientId", "paxCount", "totalCost"],
+                "properties": {
+                  "quoteId": { "type": "string" },
+                  "clientId": { "type": "string" },
+                  "destination": { "type": "string" },
+                  "departureDate": { "type": "string", "format": "date" },
+                  "returnDate": { "type": "string", "format": "date" },
+                  "paxCount": { "type": "integer", "minimum": 1 },
+                  "totalCost": { "type": "number" },
+                  "currency": { "type": "string", "default": "USD" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "booking": { "$ref": "#/components/schemas/Booking" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List bookings",
+        "operationId": "listBookings",
+        "tags": ["Bookings"],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"] } },
+          { "name": "clientId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of bookings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookings": { "type": "array", "items": { "$ref": "#/components/schemas/Booking" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/clients": {
+      "get": {
+        "summary": "List clients",
+        "operationId": "listClients",
+        "tags": ["Clients"],
+        "parameters": [
+          { "name": "q", "in": "query", "description": "Search by name, email, or phone", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clients": { "type": "array", "items": { "$ref": "#/components/schemas/Client" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create client",
+        "operationId": "createClient",
+        "tags": ["Clients"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "phone": { "type": "string" },
+                  "whatsapp": { "type": "string" },
+                  "country": { "type": "string" },
+                  "travelStyle": { "type": "string", "enum": ["luxury", "adventure", "family", "budget", "business"] },
+                  "budgetRange": { "type": "string", "example": "$5000-$10000" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Client created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "client": { "$ref": "#/components/schemas/Client" },
+                    "duplicate": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Hotels", "description": "Hotel inventory search via RateHawk" },
+    { "name": "Flights", "description": "Flight search via Duffel" },
+    { "name": "Quotes", "description": "AI itinerary and quote generation" },
+    { "name": "Bookings", "description": "Booking management and confirmation" },
+    { "name": "Clients", "description": "CRM client management" }
+  ]
+}
