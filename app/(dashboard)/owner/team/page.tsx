@@ -5,7 +5,7 @@ export default async function TeamPage() {
   const { sessionClaims } = await auth();
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
 
-  const users = agencyId
+  const users: any[] = agencyId
     ? await prisma.user.findMany({ where: { agencyId }, orderBy: { createdAt: "asc" } })
     : [];
 

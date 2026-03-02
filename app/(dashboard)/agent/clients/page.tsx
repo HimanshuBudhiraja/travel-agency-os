@@ -13,7 +13,7 @@ export default async function ClientsPage() {
   const { sessionClaims } = await auth();
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
 
-  const clients = agencyId
+  const clients: any[] = agencyId
     ? await prisma.client.findMany({
         where: { agencyId },
         orderBy: { lifetimeValue: "desc" },

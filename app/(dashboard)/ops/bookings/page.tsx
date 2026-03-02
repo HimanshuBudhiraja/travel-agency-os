@@ -12,7 +12,7 @@ export default async function BookingsPage() {
   const { sessionClaims } = await auth();
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
 
-  const bookings = agencyId
+  const bookings: any[] = agencyId
     ? await prisma.booking.findMany({
         where: { agencyId },
         include: { client: true },

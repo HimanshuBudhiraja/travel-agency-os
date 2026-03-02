@@ -23,7 +23,7 @@ export default async function AgentDashboardPage() {
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
   const userId = (sessionClaims?.metadata as any)?.dbUserId as string | undefined;
 
-  const leads = agencyId
+  const leads: any[] = agencyId
     ? await prisma.lead.findMany({
         where: { agencyId },
         include: { client: true },

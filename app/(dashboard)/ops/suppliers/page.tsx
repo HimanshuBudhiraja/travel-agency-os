@@ -5,7 +5,7 @@ export default async function SuppliersPage() {
   const { sessionClaims } = await auth();
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
 
-  const suppliers = agencyId
+  const suppliers: any[] = agencyId
     ? await prisma.supplier.findMany({
         where: { agencyId },
         orderBy: { reliabilityScore: "desc" },

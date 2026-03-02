@@ -19,7 +19,7 @@ export default async function InboxPage() {
   const { sessionClaims } = await auth();
   const agencyId = (sessionClaims?.metadata as any)?.agencyId as string | undefined;
 
-  const conversations = agencyId
+  const conversations: any[] = agencyId
     ? await prisma.conversation.findMany({
         where: { agencyId, isOpen: true },
         include: {
