@@ -88,7 +88,7 @@ export default async function AgentDashboardPage() {
                 </td>
               </tr>
             ) : (
-              leads.map((lead) => (
+              leads.map((lead: any) => (
                 <tr key={lead.id} className="hover:bg-gray-50 cursor-pointer">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">

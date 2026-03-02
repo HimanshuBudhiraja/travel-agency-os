@@ -106,7 +106,7 @@ export default function SettingsPage() {
           <p className="text-sm text-gray-400 py-4 text-center">No API keys yet.</p>
         ) : (
           <ul className="divide-y divide-gray-50">
-            {keys.map((k) => (
+            {keys.map((k: any) => (
               <li key={k.name} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{k.name}</p>

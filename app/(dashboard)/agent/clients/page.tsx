@@ -43,7 +43,7 @@ export default async function ClientsPage() {
             </p>
           </div>
         ) : (
-          clients.map((client) => (
+          clients.map((client: any) => (
             <div key={client.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-sm font-semibold text-blue-700">

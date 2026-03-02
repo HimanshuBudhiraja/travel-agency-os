@@ -58,7 +58,7 @@ export default async function InboxPage() {
               </p>
             </div>
           ) : (
-            conversations.map((conv) => {
+            conversations.map((conv: any) => {
               const lastMsg = conv.messages[0];
               return (
                 <div

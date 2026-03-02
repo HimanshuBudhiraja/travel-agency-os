@@ -45,7 +45,7 @@ export default async function TeamPage() {
                 </td>
               </tr>
             ) : (
-              users.map((u) => (
+              users.map((u: any) => (
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">

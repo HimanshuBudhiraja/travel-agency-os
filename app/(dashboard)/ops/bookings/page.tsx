@@ -47,7 +47,7 @@ export default async function BookingsPage() {
                 </td>
               </tr>
             ) : (
-              bookings.map((b) => (
+              bookings.map((b: any) => (
                 <tr key={b.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-mono text-gray-600">{b.reference}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{b.client.name}</td>
