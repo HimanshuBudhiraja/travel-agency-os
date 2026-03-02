@@ -4,11 +4,11 @@
   "installCommand": "npm install",
   "devCommand": "npm run dev",
   "env": {
-    "DATABASE_URL": "postgresql://build:build@localhost:5432/build"
+    "DATABASE_URL": "postgresql://neondb_owner:npg_E7nVwak0mgPd@ep-spring-silence-aif36qia-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
   },
   "build": {
     "env": {
-      "DATABASE_URL": "postgresql://build:build@localhost:5432/build",
+      "DATABASE_URL": "postgresql://neondb_owner:npg_E7nVwak0mgPd@ep-spring-silence-aif36qia-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
       "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_aW52aXRpbmctb3gtMjIuY2xlcmsuYWNjb3VudHMuZGV2JA"
     }
   }
