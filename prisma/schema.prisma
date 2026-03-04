@@ -72,6 +72,46 @@ enum AiActionType {
   ESCALATION
 }
 
+// ─── Policy & Change Enums ────────────────────────────────────────────────────
+
+enum ComponentType {
+  FLIGHT
+  HOTEL
+  TRANSFER
+  PACKAGE
+}
+
+enum ChangeType {
+  CANCELLATION
+  REBOOKING
+  SCHEDULE_CHANGE
+}
+
+enum ScheduleChangeClassification {
+  MINOR
+  MAJOR
+  SIGNIFICANT
+}
+
+enum ScheduleChangeStatus {
+  PENDING_REVIEW
+  ACCEPTED
+  REBOOKED
+  CANCELLED
+  NOTIFIED
+}
+
+enum BookingChangeStatus {
+  PREVIEW
+  CONFIRMED
+  ROLLED_BACK
+}
+
+enum FeeSource {
+  SUPPLIER
+  POLICY
+}
+
 // ─── Agency (Tenant) ─────────────────────────────────────────────────────────
 
 model Agency {
@@ -103,6 +143,7 @@ model Agency {
   suppliers     Supplier[]
   apiKeys       ApiKey[]
   aiActions     AiAction[]
+  agencyPolicies AgencyPolicy[]
 
   @@index([slug])
 }
@@ -302,10 +343,16 @@ model Booking {
   confirmedAt  DateTime?
   cancelledAt  DateTime?
   notes        String?
+  packageRef      String?
+  isPackage       Boolean       @default(false)
+  agencyServiceFee Float        @default(0)
+  agencyMarkupPct  Float        @default(0)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   supplierBookings SupplierBooking[]
+  bookingChanges   BookingChange[]
+  scheduleChanges  ScheduleChange[]
 
   @@index([agencyId])
   @@index([clientId])
@@ -313,19 +360,25 @@ model Booking {
 }
 
 model SupplierBooking {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   bookingId   String
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplier    Supplier      @relation(fields: [supplierId], references: [id])
   type        String
   reference   String?
-  status      String   @default("pending")
+  status      String        @default("pending")
   cost        Float
-  currency    String   @default("USD")
+  currency    String        @default("USD")
   confirmedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  rawCancellationPolicy Json?
+  rawChangePolicy       Json?
+  originalCost          Float?
+  componentType         ComponentType @default(FLIGHT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  bookingChanges BookingChange[]
 }
 
 model Supplier {
@@ -389,4 +442,95 @@ model AiAction {
   @@index([agencyId])
   @@index([type])
   @@index([entityId])
+}
+
+// ─── Policy Engine ────────────────────────────────────────────────────────────
+
+model AgencyPolicy {
+  id                       String        @id @default(cuid())
+  agencyId                 String
+  agency                   Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  componentType            ComponentType
+  name                     String
+  isDefault                Boolean       @default(false)
+  tiers                    PolicyTier[]
+  cancellationServiceFee   Float         @default(0)
+  rebookingServiceFee      Float         @default(0)
+  scheduleChangeServiceFee Float         @default(0)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  @@unique([agencyId, componentType, isDefault])
+  @@index([agencyId])
+}
+
+model PolicyTier {
+  id             String       @id @default(cuid())
+  agencyPolicyId String
+  agencyPolicy   AgencyPolicy @relation(fields: [agencyPolicyId], references: [id], onDelete: Cascade)
+  daysBeforeMin  Int
+  daysBeforeMax  Int?
+  feeType        String
+  feeValue       Float        @default(0)
+  description    String?
+  sortOrder      Int          @default(0)
+
+  @@index([agencyPolicyId])
+}
+
+model BookingChange {
+  id                      String              @id @default(cuid())
+  agencyId                String
+  bookingId               String
+  booking                 Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplierBookingId       String?
+  supplierBooking         SupplierBooking?    @relation(fields: [supplierBookingId], references: [id])
+  changeType              ChangeType
+  status                  BookingChangeStatus @default(PREVIEW)
+  feesBreakdown           Json
+  feeSource               FeeSource
+  totalFees               Float
+  refundAmount            Float?
+  newTotalCost            Float?
+  supplierCancellationId  String?
+  newSupplierReference    String?
+  initiatedByUserId       String?
+  notes                   String?
+  confirmedAt             DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([bookingId])
+  @@index([agencyId])
+}
+
+model ScheduleChange {
+  id                  String                        @id @default(cuid())
+  agencyId            String
+  bookingId           String
+  booking             Booking                       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplierBookingId   String?
+  supplierReference   String?
+  componentType       ComponentType
+  originalDepartureAt DateTime?
+  originalArrivalAt   DateTime?
+  originalSegmentData Json?
+  newDepartureAt      DateTime?
+  newArrivalAt        DateTime?
+  newSegmentData      Json?
+  shiftMinutes        Int?
+  classification      ScheduleChangeClassification?
+  status              ScheduleChangeStatus          @default(PENDING_REVIEW)
+  optionsOffered      Json?
+  clientNotifiedAt    DateTime?
+  clientDecisionAt    DateTime?
+  clientDecision      String?
+  webhookPayload      Json?
+  resolvedAt          DateTime?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+
+  @@index([bookingId])
+  @@index([agencyId])
+  @@index([status])
 }

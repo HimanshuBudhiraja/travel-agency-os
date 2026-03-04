@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db/prisma";
-import { generateItinerary } from "@/lib/ai/brain";
+import { generateThreeTierItinerary } from "@/lib/ai/brain";
 import { searchHotels } from "@/lib/suppliers/ratehawk";
 import { z } from "zod";
 
@@ -47,14 +47,16 @@ export async function POST(req: NextRequest) {
   const departureStr = departure.toISOString().split("T")[0];
   const returnStr = returnDate.toISOString().split("T")[0];
 
+  const budgetInr = budget * 83; // rough USD→INR
+
   // Run AI itinerary generation + hotel search in parallel
-  const [itineraryResult, hotels] = await Promise.all([
-    generateItinerary({
+  const [tiers, hotels] = await Promise.all([
+    generateThreeTierItinerary({
       destination,
       departureDate: departureStr,
       returnDate: returnStr,
       paxCount,
-      budget,
+      budgetInr,
       travelStyle: brief.match(/luxury|adventure|family|budget|business/i)?.[0] || "flexible",
       preferences: brief,
       agencyId,
@@ -68,36 +70,36 @@ export async function POST(req: NextRequest) {
     }),
   ]);
 
-  const netCost = hotels[0]?.totalPrice || budget * 0.75;
-  const markup = netCost * 0.2;
-  const grossPrice = netCost + markup;
+  const recommended = tiers.recommended;
+  const netCost = recommended.netCostInr / 83; // convert back to USD for DB
+  const grossPrice = recommended.grossPriceInr / 83;
 
   // Resolve client: use provided clientId or find/create a placeholder
   let resolvedClientId = clientId;
   if (!resolvedClientId) {
-    // Create a placeholder client if none provided
     const placeholder = await prisma.client.create({
       data: { agencyId, name: "New Client (from quote builder)" },
     });
     resolvedClientId = placeholder.id;
   }
 
-  // Persist as a draft quote
+  // Persist recommended tier as a draft quote
   const quote = await prisma.quote.create({
     data: {
       agencyId,
       clientId: resolvedClientId,
       leadId: leadId || null,
       createdById: userId,
-      title: (itineraryResult.itinerary as any).title || `${destination} Trip`,
+      title: recommended.title || `${destination} Trip`,
       destination,
       departureDate: departure,
       returnDate: returnDate,
       paxCount,
       netCost,
-      markup: 0.2,
+      markup: recommended.marginPct,
       grossPrice,
-      itinerary: itineraryResult.itinerary as any,
+      currency: "INR",
+      itinerary: recommended as any,
       isAiGenerated: true,
       aiPrompt: brief,
       webLinkToken: crypto.randomUUID(),
@@ -106,13 +108,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     quoteId: quote.id,
-    ...(itineraryResult.itinerary as any),
+    tiers,
     hotels,
-    pricing: {
-      net: Math.round(netCost),
-      markup: Math.round(markup),
-      gross: Math.round(grossPrice),
-    },
   });
 }
 
